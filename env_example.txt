@@ -1,0 +1,7 @@
+# Google Sheets Configuration
+# Get this from your Google Sheet URL: https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID_HERE/edit
+GOOGLE_SHEET_ID=your_sheet_id_here
+
+# Search Keywords (comma-separated)
+# You can add more keywords separated by commas
+SEARCH_KEYWORDS=ai summer camp,artificial intelligence summer program,ai summer camp high school,machine learning summer camp,ai summer program students 
