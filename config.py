@@ -14,11 +14,14 @@ CREDENTIALS_FILE = 'credentials.json'
 
 # Search Configuration
 DEFAULT_KEYWORDS = [
-    'ai summer camp',
-    'artificial intelligence summer program',
-    'ai summer camp high school',
-    'machine learning summer camp',
-    'ai summer program students'
+    'ai summer camp 2024',
+    'artificial intelligence summer program high school',
+    'ai summer camp application deadline',
+    'machine learning summer camp students',
+    'ai summer program registration',
+    'artificial intelligence summer institute',
+    'ai summer academy high school',
+    'machine learning summer program apply'
 ]
 
 # Get keywords from environment or use defaults

@@ -9,12 +9,6 @@ import logging
 from datetime import datetime
 from urllib.parse import urljoin, urlparse
 import re
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 
 from config import (
     SEARCH_ENGINES, 
@@ -24,12 +18,13 @@ from config import (
     MAX_RETRIES
 )
 from sheets_manager import GoogleSheetsManager
+from google_api import GoogleCustomSearch
 
 class WebScraper:
     def __init__(self):
         self.sheets_manager = GoogleSheetsManager()
         self.session = requests.Session()
-        self.driver = None
+        self.google_api = GoogleCustomSearch()
         
         # Setup logging
         logging.basicConfig(
@@ -47,81 +42,15 @@ class WebScraper:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
     
-    def setup_selenium(self):
-        """Setup Selenium WebDriver for dynamic content"""
-        try:
-            chrome_options = Options()
-            chrome_options.add_argument('--headless')
-            chrome_options.add_argument('--no-sandbox')
-            chrome_options.add_argument('--disable-dev-shm-usage')
-            chrome_options.add_argument('--disable-gpu')
-            chrome_options.add_argument('--window-size=1920,1080')
-            
-            self.driver = webdriver.Chrome(
-                ChromeDriverManager().install(),
-                options=chrome_options
-            )
-            self.logger.info("Selenium WebDriver setup complete")
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to setup Selenium: {str(e)}")
-            return False
-    
     def search_google(self, keyword, max_results=10):
-        """Search Google and extract results"""
-        results = []
+        """Search Google using Custom Search API"""
         try:
-            # Use Selenium for Google as it has anti-bot protection
-            if not self.driver:
-                if not self.setup_selenium():
-                    return results
-            
-            search_url = f"https://www.google.com/search?q={keyword.replace(' ', '+')}&num={max_results}"
-            self.driver.get(search_url)
-            
-            # Wait for results to load
-            WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "div.g"))
-            )
-            
-            # Extract results
-            search_results = self.driver.find_elements(By.CSS_SELECTOR, "div.g")
-            
-            for result in search_results[:max_results]:
-                try:
-                    # Extract title and URL
-                    title_element = result.find_element(By.CSS_SELECTOR, "h3")
-                    link_element = result.find_element(By.CSS_SELECTOR, "a")
-                    
-                    title = title_element.text.strip()
-                    url = link_element.get_attribute("href")
-                    
-                    # Extract description
-                    try:
-                        desc_element = result.find_element(By.CSS_SELECTOR, "div.VwiC3b")
-                        description = desc_element.text.strip()
-                    except:
-                        description = ""
-                    
-                    if title and url and url.startswith('http'):
-                        results.append({
-                            'keyword': keyword,
-                            'title': title,
-                            'url': url,
-                            'description': description,
-                            'source': 'Google'
-                        })
-                        
-                except Exception as e:
-                    self.logger.debug(f"Error extracting result: {str(e)}")
-                    continue
-            
-            self.logger.info(f"Found {len(results)} results from Google for '{keyword}'")
-            
+            results = self.google_api.search(keyword, max_results)
+            self.logger.info(f"Google API search completed for '{keyword}'")
+            return results
         except Exception as e:
-            self.logger.error(f"Error searching Google: {str(e)}")
-        
-        return results
+            self.logger.error(f"Google API search failed for '{keyword}': {str(e)}")
+            return []
     
     def search_bing(self, keyword, max_results=10):
         """Search Bing and extract results"""
@@ -154,7 +83,8 @@ class WebScraper:
                     desc_element = result.find('p')
                     description = desc_element.get_text().strip() if desc_element else ""
                     
-                    if title and url and url.startswith('http'):
+                    # Filter out dictionary/Wikipedia results
+                    if self._is_relevant_result(title, description, url):
                         results.append({
                             'keyword': keyword,
                             'title': title,
@@ -167,7 +97,7 @@ class WebScraper:
                     self.logger.debug(f"Error extracting Bing result: {str(e)}")
                     continue
             
-            self.logger.info(f"Found {len(results)} results from Bing for '{keyword}'")
+            self.logger.info(f"Found {len(results)} relevant results from Bing for '{keyword}'")
             
         except Exception as e:
             self.logger.error(f"Error searching Bing: {str(e)}")
@@ -201,7 +131,8 @@ class WebScraper:
                     desc_element = result.find('a', class_='result__snippet')
                     description = desc_element.get_text().strip() if desc_element else ""
                     
-                    if title and url and url.startswith('http'):
+                    # Filter out dictionary/Wikipedia results
+                    if self._is_relevant_result(title, description, url):
                         results.append({
                             'keyword': keyword,
                             'title': title,
@@ -225,24 +156,107 @@ class WebScraper:
         """Scrape results from all search engines"""
         all_results = []
         
-        # Search Google
-        google_results = self.search_google(keyword, max_results_per_engine)
-        all_results.extend(google_results)
+        # Search Google (with fallback)
+        try:
+            google_results = self.search_google(keyword, max_results_per_engine)
+            all_results.extend(google_results)
+            self.logger.info(f"Google search completed for '{keyword}'")
+        except Exception as e:
+            self.logger.warning(f"Google search failed for '{keyword}': {str(e)}")
         
         time.sleep(DELAY_BETWEEN_REQUESTS)
         
         # Search Bing
-        bing_results = self.search_bing(keyword, max_results_per_engine)
-        all_results.extend(bing_results)
+        try:
+            bing_results = self.search_bing(keyword, max_results_per_engine)
+            all_results.extend(bing_results)
+            self.logger.info(f"Bing search completed for '{keyword}'")
+        except Exception as e:
+            self.logger.warning(f"Bing search failed for '{keyword}': {str(e)}")
         
         time.sleep(DELAY_BETWEEN_REQUESTS)
         
         # Search DuckDuckGo
-        duckduckgo_results = self.search_duckduckgo(keyword, max_results_per_engine)
-        all_results.extend(duckduckgo_results)
+        try:
+            duckduckgo_results = self.search_duckduckgo(keyword, max_results_per_engine)
+            all_results.extend(duckduckgo_results)
+            self.logger.info(f"DuckDuckGo search completed for '{keyword}'")
+        except Exception as e:
+            self.logger.warning(f"DuckDuckGo search failed for '{keyword}': {str(e)}")
         
         return all_results
     
+    def _is_relevant_result(self, title, description, url):
+        """Check if a search result is relevant to AI summer camps"""
+        # Basic URL and title validation
+        if not title or not url or not url.startswith('http'):
+            return False
+        
+        # Convert to lowercase for easier matching
+        title_lower = title.lower()
+        desc_lower = description.lower()
+        url_lower = url.lower()
+        
+        # Keywords that indicate this is NOT a summer camp program
+        irrelevant_keywords = [
+            'wikipedia.org',
+            'dictionary.com',
+            'merriam-webster',
+            'urbandictionary',
+            'definition',
+            'meaning of',
+            'what is',
+            'encyclopedia',
+            'wiki',
+            'dictionary',
+            'thesaurus',
+            'synonym',
+            'antonym'
+        ]
+        
+        # Check if result contains irrelevant keywords
+        for keyword in irrelevant_keywords:
+            if (keyword in title_lower or 
+                keyword in desc_lower or 
+                keyword in url_lower):
+                return False
+        
+        # Keywords that indicate this IS a summer camp program
+        relevant_keywords = [
+            'summer camp',
+            'summer program',
+            'summer institute',
+            'summer academy',
+            'summer school',
+            'camp registration',
+            'apply now',
+            'application',
+            'enrollment',
+            'register',
+            'program dates',
+            'tuition',
+            'cost',
+            'fee',
+            'deadline',
+            'admission',
+            'accepting applications'
+        ]
+        
+        # Check if result contains relevant keywords
+        for keyword in relevant_keywords:
+            if (keyword in title_lower or 
+                keyword in desc_lower):
+                return True
+        
+        # If no relevant keywords found, still include if it has AI-related terms
+        ai_keywords = ['ai', 'artificial intelligence', 'machine learning', 'deep learning', 'neural network']
+        for keyword in ai_keywords:
+            if (keyword in title_lower or 
+                keyword in desc_lower):
+                return True
+        
+        return False
+
     def remove_duplicates(self, results, existing_urls):
         """Remove duplicate results based on URL"""
         unique_results = []
@@ -271,7 +285,7 @@ class WebScraper:
             for keyword in SEARCH_KEYWORDS:
                 self.logger.info(f"Searching for: {keyword}")
                 
-                results = self.scrape_all_engines(keyword, MAX_RESULTS_PER_KEYWORD // 3)
+                results = self.scrape_all_engines(keyword, MAX_RESULTS_PER_KEYWORD // 3)  # Back to 3 engines
                 all_results.extend(results)
                 
                 time.sleep(DELAY_BETWEEN_REQUESTS)
@@ -298,9 +312,7 @@ class WebScraper:
         
         finally:
             # Clean up
-            if self.driver:
-                self.driver.quit()
-                self.logger.info("Selenium WebDriver closed")
+            pass # No Selenium cleanup needed
 
 def main():
     """Main function to run the scraper"""
