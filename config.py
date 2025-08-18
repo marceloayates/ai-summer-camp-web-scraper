@@ -60,6 +60,7 @@ MAX_RETRIES = 3
 
 # Google Sheets Configuration
 SHEET_NAME = 'AI Summer Camps'
+SPANISH_SHEET_NAME = 'AI Summer Camps - Español'
 COLUMNS = ['Keyword', 'Title', 'URL', 'Description', 'Date_Found', 'Source']
 
 # Scheduling Configuration
