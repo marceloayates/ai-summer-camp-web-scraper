@@ -119,11 +119,10 @@ class GoogleSheetsManager:
             
             for item in data:
                 row = [
-                    item.get('keyword', ''),
                     item.get('title', ''),
                     item.get('url', ''),
+                    item.get('category', ''),
                     item.get('description', ''),
-                    current_date,
                     item.get('source', '')
                 ]
                 english_rows.append(row)
@@ -141,11 +140,10 @@ class GoogleSheetsManager:
             spanish_rows = []
             for item in translated_data:
                 row = [
-                    item.get('keyword', ''),
                     item.get('title', ''),
                     item.get('url', ''),
+                    item.get('category', ''),
                     item.get('description', ''),
-                    current_date,
                     item.get('source', '')
                 ]
                 spanish_rows.append(row)

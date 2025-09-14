@@ -15,7 +15,9 @@ from config import (
     SEARCH_KEYWORDS, 
     MAX_RESULTS_PER_KEYWORD, 
     DELAY_BETWEEN_REQUESTS,
-    MAX_RETRIES
+    MAX_RETRIES,
+    CATEGORIES,
+    CATEGORY_KEYWORDS
 )
 from sheets_manager import GoogleSheetsManager
 from google_api import GoogleCustomSearch
@@ -45,9 +47,16 @@ class WebScraper:
     def search_google(self, keyword, max_results=10):
         """Search Google using Custom Search API"""
         try:
-            results = self.google_api.search(keyword, max_results)
+            api_results = self.google_api.search(keyword, max_results)
+            # Add categorization to Google API results
+            categorized_results = []
+            for result in api_results:
+                category = self.categorize_result(result.get('title', ''), result.get('description', ''), result.get('url', ''))
+                result['category'] = category
+                categorized_results.append(result)
+            
             self.logger.info(f"Google API search completed for '{keyword}'")
-            return results
+            return categorized_results
         except Exception as e:
             self.logger.error(f"Google API search failed for '{keyword}': {str(e)}")
             return []
@@ -64,6 +73,7 @@ class WebScraper:
             
             # Find search results
             search_results = soup.find_all('li', class_='b_algo')
+            self.logger.debug(f"Bing found {len(search_results)} raw results for '{keyword}'")
             
             for result in search_results[:max_results]:
                 try:
@@ -83,15 +93,22 @@ class WebScraper:
                     desc_element = result.find('p')
                     description = desc_element.get_text().strip() if desc_element else ""
                     
+                    self.logger.debug(f"Bing result: {title[:50]}... - {url}")
+                    
                     # Filter out dictionary/Wikipedia results
                     if self._is_relevant_result(title, description, url):
+                        category = self.categorize_result(title, description, url)
                         results.append({
                             'keyword': keyword,
                             'title': title,
                             'url': url,
                             'description': description,
-                            'source': 'Bing'
+                            'source': 'Bing',
+                            'category': category
                         })
+                        self.logger.debug(f"Bing result added: {title[:50]}...")
+                    else:
+                        self.logger.debug(f"Bing result filtered out: {title[:50]}...")
                         
                 except Exception as e:
                     self.logger.debug(f"Error extracting Bing result: {str(e)}")
@@ -133,12 +150,14 @@ class WebScraper:
                     
                     # Filter out dictionary/Wikipedia results
                     if self._is_relevant_result(title, description, url):
+                        category = self.categorize_result(title, description, url)
                         results.append({
                             'keyword': keyword,
                             'title': title,
                             'url': url,
                             'description': description,
-                            'source': 'DuckDuckGo'
+                            'source': 'DuckDuckGo',
+                            'category': category
                         })
                         
                 except Exception as e:
@@ -255,7 +274,53 @@ class WebScraper:
                 keyword in desc_lower):
                 return True
         
-        return False
+        # Be more lenient - if it's from a search about AI summer camps, include it unless it's clearly irrelevant
+        # This will catch more results that might be relevant but don't have exact keyword matches
+        return True
+
+    def categorize_result(self, title, description, url):
+        """Categorize a search result based on title, description, and URL"""
+        # Combine all text for analysis
+        text_to_analyze = f"{title} {description} {url}".lower()
+        
+        # Score each category based on keyword matches
+        category_scores = {}
+        
+        for category_key, keywords in CATEGORY_KEYWORDS.items():
+            score = 0
+            for keyword in keywords:
+                if keyword.lower() in text_to_analyze:
+                    # Weight title matches more heavily
+                    if keyword.lower() in title.lower():
+                        score += 5  # Increased weight for title matches
+                    elif keyword.lower() in description.lower():
+                        score += 3  # Increased weight for description matches
+                    elif keyword.lower() in url.lower():
+                        score += 1
+            
+            category_scores[category_key] = score
+        
+        # Find the category with the highest score
+        if category_scores:
+            best_category = max(category_scores, key=category_scores.get)
+            # Use the best category if it has any score, otherwise try fallback logic
+            if category_scores[best_category] > 0:
+                return CATEGORIES[best_category]
+        
+        # If no category has any score, use fallback logic
+        # Try to infer from URL domain or other clues
+        url_lower = url.lower()
+        if any(word in url_lower for word in ['state', 'community', 'public']):
+            return CATEGORIES['STATE_LOCAL_OPPORTUNITY']
+        elif any(word in url_lower for word in ['online', 'course', 'platform']):
+            return CATEGORIES['SELF_GUIDED_COURSES']
+        elif any(word in url_lower for word in ['scholarship', 'grant', 'fund']):
+            return CATEGORIES['TECHNOLOGY_SCHOLARSHIP']
+        elif any(word in text_to_analyze for word in ['university', 'college', 'institute']):
+            return CATEGORIES['SECONDARY_SCHOOL_FELLOWSHIP']
+        else:
+            # If we can't determine anything, use "Other"
+            return CATEGORIES['OTHER']
 
     def remove_duplicates(self, results, existing_urls):
         """Remove duplicate results based on URL"""

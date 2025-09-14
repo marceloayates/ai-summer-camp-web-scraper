@@ -61,7 +61,45 @@ MAX_RETRIES = 3
 # Google Sheets Configuration
 SHEET_NAME = 'AI Summer Camps'
 SPANISH_SHEET_NAME = 'AI Summer Camps - Español'
-COLUMNS = ['Keyword', 'Title', 'URL', 'Description', 'Date_Found', 'Source']
+COLUMNS = ['Title', 'URL', 'Category', 'Description', 'Source']
+
+# Category Configuration
+CATEGORIES = {
+    'SECONDARY_SCHOOL_FELLOWSHIP': 'Secondary school fellowship opportunities with tier 1 colleges and universities',
+    'TECHNOLOGY_SCHOLARSHIP': 'Scholarship opportunities for technology-based summer camps',
+    'STATE_LOCAL_OPPORTUNITY': 'State/local opportunities for extended learning',
+    'SELF_GUIDED_COURSES': 'Self-guided courses',
+    'OTHER': 'Other'
+}
+
+# Category keywords for automatic classification
+CATEGORY_KEYWORDS = {
+    'SECONDARY_SCHOOL_FELLOWSHIP': [
+        'fellowship', 'prestigious', 'harvard', 'mit', 'stanford', 'berkeley', 
+        'caltech', 'princeton', 'yale', 'ivy league', 'research fellowship', 
+        'undergraduate research', 'college prep', 'institutional', 'higher education',
+        'elite', 'selective', 'competitive', 'merit-based admission'
+    ],
+    'TECHNOLOGY_SCHOLARSHIP': [
+        'scholarship', 'financial aid', 'grant', 'funding', 'free program',
+        'need-based', 'merit-based', 'sponsorship', 'paid program', 'cost covered',
+        'financial support', 'no cost', 'low cost', 'affordable', 'tuition free',
+        'full ride', 'waiver', 'assistance'
+    ],
+    'STATE_LOCAL_OPPORTUNITY': [
+        'state program', 'local program', 'county', 'municipal', 'government',
+        'public program', 'state funded', 'local funding', 'regional', 'community',
+        'state university', 'public university', 'state college', 'community college',
+        'state department', 'local education', 'regional program', 'taxpayer funded'
+    ],
+    'SELF_GUIDED_COURSES': [
+        'self-paced', 'online course', 'self-guided', 'independent study',
+        'remote learning', 'virtual program', 'asynchronous', 'self-directed',
+        'individual learning', 'flexible schedule', 'on-demand', 'course platform',
+        'learning platform', 'mooc', 'massive open online course', 'at your own pace',
+        'flexible timing', 'self-study'
+    ]
+}
 
 # Scheduling Configuration
 SCHEDULE_INTERVAL_HOURS = 24  # Run every 24 hours

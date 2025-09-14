@@ -13,12 +13,20 @@ class TranslationService:
         
         # Spanish column headers
         self.spanish_headers = {
-            'Keyword': 'Palabra Clave',
             'Title': 'Título',
             'URL': 'URL',
+            'Category': 'Categoría',
             'Description': 'Descripción',
-            'Date_Found': 'Fecha_Encontrado',
             'Source': 'Fuente'
+        }
+        
+        # Spanish category translations
+        self.spanish_categories = {
+            'Secondary school fellowship opportunities with tier 1 colleges and universities': 'Oportunidades de becas de escuela secundaria con universidades y colegios de nivel 1',
+            'Scholarship opportunities for technology-based summer camps': 'Oportunidades de becas para campamentos de verano basados en tecnología',
+            'State/local opportunities for extended learning': 'Oportunidades estatales/locales para aprendizaje extendido',
+            'Self-guided courses': 'Cursos autoguiados',
+            'Other': 'Otro'
         }
     
     def translate_text(self, text, max_retries=3):
@@ -51,10 +59,6 @@ class TranslationService:
         for item in data:
             translated_item = item.copy()
             
-            # Translate keyword
-            if 'keyword' in translated_item:
-                translated_item['keyword'] = self.translate_text(translated_item['keyword'])
-            
             # Translate title
             if 'title' in translated_item:
                 translated_item['title'] = self.translate_text(translated_item['title'])
@@ -62,6 +66,15 @@ class TranslationService:
             # Translate description
             if 'description' in translated_item:
                 translated_item['description'] = self.translate_text(translated_item['description'])
+            
+            # Translate category
+            if 'category' in translated_item:
+                category = translated_item['category']
+                if category in self.spanish_categories:
+                    translated_item['category'] = self.spanish_categories[category]
+                else:
+                    # Fallback to direct translation if not in predefined list
+                    translated_item['category'] = self.translate_text(category)
             
             translated_data.append(translated_item)
         
